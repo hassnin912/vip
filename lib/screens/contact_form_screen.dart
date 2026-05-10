@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
-import 'package:flutter_contacts/flutter_contacts.dart'; // مكتبة جلب جهات الاتصال
+// أعطينا المكتبة اسم مستعار عشان نمنع التعارض
+import 'package:flutter_contacts/flutter_contacts.dart' as phone_contacts; 
 import '../models/contact.dart';
 import '../services/storage_service.dart';
 
@@ -29,22 +30,19 @@ class _ContactFormScreenState extends State<ContactFormScreen> {
 
   // الدالة الخاصة بفتح جهات اتصال الهاتف واختيار شخص
   Future<void> _pickContactFromPhone() async {
-    // طلب صلاحية الوصول لجهات الاتصال من المستخدم
-    if (await FlutterContacts.requestPermission()) {
-      // فتح واجهة الهاتف لاختيار رقم
-      final contact = await FlutterContacts.openExternalPick();
-      if (contact != null) {
+    // استخدمنا الاسم المستعار هنا
+    if (await phone_contacts.FlutterContacts.requestPermission()) {
+      // وهنا كمان
+      final phoneContact = await phone_contacts.FlutterContacts.openExternalPick();
+      if (phoneContact != null) {
         setState(() {
-          // تعبئة حقل الاسم
-          _nameController.text = contact.displayName;
-          // تعبئة حقل الرقم لو جهة الاتصال مسجل ليها رقم
-          if (contact.phones.isNotEmpty) {
-            _phoneController.text = contact.phones.first.number;
+          _nameController.text = phoneContact.displayName;
+          if (phoneContact.phones.isNotEmpty) {
+            _phoneController.text = phoneContact.phones.first.number;
           }
         });
       }
     } else {
-      // لو المستخدم رفض الصلاحية
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('يجب إعطاء صلاحية الوصول لجهات الاتصال')),
@@ -55,6 +53,7 @@ class _ContactFormScreenState extends State<ContactFormScreen> {
 
   void _save() async {
     if (_formKey.currentState!.validate()) {
+      // هنا هيستخدم الـ Contact الخاص بمشروعك (الموديل بتاعك) بدون أي مشاكل
       final contact = Contact(
         id: widget.contact?.id ?? const Uuid().v4(),
         name: _nameController.text,
@@ -97,7 +96,6 @@ class _ContactFormScreenState extends State<ContactFormScreen> {
                 controller: _nameController,
                 decoration: InputDecoration(
                   labelText: 'الاسم الكامل',
-                  // ده زرار الـ + اللي هيظهر جنب حقل الاسم
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.add_circle, color: Colors.blue, size: 30),
                     onPressed: _pickContactFromPhone,
@@ -134,3 +132,4 @@ class _ContactFormScreenState extends State<ContactFormScreen> {
     );
   }
 }
+
