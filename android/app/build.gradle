@@ -24,7 +24,9 @@ if (flutterVersionName == null) {
 
 android {
     namespace "com.ahmed.vip"
-    compileSdk 35  // <--- تم التعديل هنا لـ 35
+    compileSdk 35
+    buildToolsVersion "34.0.0"
+
     ndkVersion flutter.ndkVersion
 
     compileOptions {
@@ -45,7 +47,7 @@ android {
         applicationId "com.ahmed.vip"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
-        minSdkVersion 23  // <--- تم التعديل هنا لـ 23
+        minSdkVersion 23
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
