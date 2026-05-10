@@ -16,6 +16,9 @@ dependencies:
   intl: any
   uuid: ^4.3.3
   flutter_contacts: any
+  record: any          # المكتبة دي لتسجيل الصوت
+  audioplayers: any    # المكتبة دي لتشغيل الصوت
+  path_provider: any   # المكتبة دي لحفظ الملفات الصوتية المؤقتة
   flutter_localizations:
     sdk: flutter
 
