@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter_contacts/flutter_contacts.dart'; // مكتبة جلب جهات الاتصال
 import '../models/contact.dart';
 import '../services/storage_service.dart';
 
@@ -24,6 +25,32 @@ class _ContactFormScreenState extends State<ContactFormScreen> {
     _nameController = TextEditingController(text: widget.contact?.name ?? '');
     _roleController = TextEditingController(text: widget.contact?.role ?? '');
     _phoneController = TextEditingController(text: widget.contact?.phoneNumber ?? '');
+  }
+
+  // الدالة الخاصة بفتح جهات اتصال الهاتف واختيار شخص
+  Future<void> _pickContactFromPhone() async {
+    // طلب صلاحية الوصول لجهات الاتصال من المستخدم
+    if (await FlutterContacts.requestPermission()) {
+      // فتح واجهة الهاتف لاختيار رقم
+      final contact = await FlutterContacts.openExternalPick();
+      if (contact != null) {
+        setState(() {
+          // تعبئة حقل الاسم
+          _nameController.text = contact.displayName;
+          // تعبئة حقل الرقم لو جهة الاتصال مسجل ليها رقم
+          if (contact.phones.isNotEmpty) {
+            _phoneController.text = contact.phones.first.number;
+          }
+        });
+      }
+    } else {
+      // لو المستخدم رفض الصلاحية
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('يجب إعطاء صلاحية الوصول لجهات الاتصال')),
+        );
+      }
+    }
   }
 
   void _save() async {
@@ -68,7 +95,14 @@ class _ContactFormScreenState extends State<ContactFormScreen> {
             children: [
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'الاسم الكامل'),
+                decoration: InputDecoration(
+                  labelText: 'الاسم الكامل',
+                  // ده زرار الـ + اللي هيظهر جنب حقل الاسم
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.add_circle, color: Colors.blue, size: 30),
+                    onPressed: _pickContactFromPhone,
+                  ),
+                ),
                 validator: (v) => v!.isEmpty ? 'يرجى إدخال الاسم' : null,
               ),
               const SizedBox(height: 16),
