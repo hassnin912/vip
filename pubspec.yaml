@@ -16,9 +16,10 @@ dependencies:
   intl: any
   uuid: ^4.3.3
   flutter_contacts: any
-  record: any          # المكتبة دي لتسجيل الصوت
-  audioplayers: any    # المكتبة دي لتشغيل الصوت
-  path_provider: any   # المكتبة دي لحفظ الملفات الصوتية المؤقتة
+  record: ^5.0.5
+  # استخدمنا الإصدار ده بالظبط عشان نتجنب تعارض أندرويد 35
+  audioplayers: 5.1.0 
+  path_provider: ^2.1.2
   flutter_localizations:
     sdk: flutter
 
