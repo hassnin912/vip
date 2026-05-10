@@ -1,86 +1,177 @@
-import 'dart:typed_data';
-import 'package:nearby_connections/nearby_connections.dart';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:nearby_connections/nearby_connections.dart';
+import 'package:record/record.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
 
 class WirelessService extends ChangeNotifier {
-  final Strategy strategy = Strategy.P2P_STAR;
-  String userName = "VIP_User";
+  final Strategy strategy = Strategy.P2P_STAR; // مناسب للغرف المتعددة
+  
   List<String> connectedDevices = [];
-  bool isAdvertising = false;
-  bool isDiscovering = false;
+  bool isConnectedToRoom = false;
+  bool isRecording = false;
 
-  Future<void> startP2P(String name) async {
-    userName = name;
+  // أدوات الصوت
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  String? _currentAudioPath;
+  
+  // لحفظ مسارات الملفات اللي بتتبعت
+  final Map<int, String> _incomingFiles = {};
+
+  // ==========================================
+  // 1. إنشاء غرفة (بث)
+  // ==========================================
+  Future<void> createRoom(String channelId, String password) async {
+    // دمج القناة والباسورد لعمل تردد فريد (Service ID)
+    String roomFrequency = "vip_room_${channelId}_$password";
+    String myName = "VIP_Creator"; // ممكن تخلي المستخدم يكتب اسمه
+
     try {
       bool a = await Nearby().startAdvertising(
-        userName,
+        myName,
         strategy,
+        serviceId: roomFrequency, // التردد السري
         onConnectionInitiated: onConnectionInit,
         onConnectionResult: (id, status) {
           if (status == Status.CONNECTED) {
             connectedDevices.add(id);
+            isConnectedToRoom = true;
             notifyListeners();
           }
         },
         onDisconnected: (id) {
           connectedDevices.remove(id);
+          if (connectedDevices.isEmpty) isConnectedToRoom = false;
           notifyListeners();
         },
       );
-      isAdvertising = a;
       
+      if (a) {
+        isConnectedToRoom = true;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Error creating room: $e");
+    }
+  }
+
+  // ==========================================
+  // 2. الانضمام لغرفة (بحث)
+  // ==========================================
+  Future<void> joinRoom(String channelId, String password) async {
+    String roomFrequency = "vip_room_${channelId}_$password";
+    String myName = "VIP_Member";
+
+    try {
       bool d = await Nearby().startDiscovery(
-        userName,
+        myName,
         strategy,
+        serviceId: roomFrequency, // لازم يطابق التردد السري
         onEndpointFound: (id, name, serviceId) {
+          // أول ما يلاقي الغرفة، يطلب الانضمام فوراً
           Nearby().requestConnection(
-            userName,
+            myName,
             id,
             onConnectionInitiated: onConnectionInit,
             onConnectionResult: (id, status) {
               if (status == Status.CONNECTED) {
                 connectedDevices.add(id);
+                isConnectedToRoom = true;
+                Nearby().stopDiscovery(); // نوقف بحث عشان نوفر بطارية
                 notifyListeners();
               }
             },
             onDisconnected: (id) {
               connectedDevices.remove(id);
+              if (connectedDevices.isEmpty) isConnectedToRoom = false;
               notifyListeners();
             },
           );
         },
         onEndpointLost: (id) {},
       );
-      isDiscovering = d;
-      notifyListeners();
+      
+      if (d) {
+        // جاري البحث... سيتم تحديث الحالة عند الاتصال
+        notifyListeners();
+      }
     } catch (e) {
-      debugPrint("Error in Wireless Service: $e");
+      debugPrint("Error joining room: $e");
     }
   }
 
+  // ==========================================
+  // 3. تهيئة الاتصال واستقبال الصوت
+  // ==========================================
   void onConnectionInit(String id, ConnectionInfo info) {
-    Nearby().acceptConnection(id, onPayLoadRecieved: (id, payload) {
-      // Handle received data
-    });
+    Nearby().acceptConnection(
+      id,
+      onPayLoadRecieved: (endpointId, payload) {
+        // لما يوصل ملف (رسالة صوتية)
+        if (payload.type == PayloadType.FILE) {
+          _incomingFiles[payload.id] = payload.filePath ?? '';
+        }
+      },
+      onPayloadTransferUpdate: (endpointId, payloadTransferUpdate) async {
+        // لما الملف يكتمل تحميله بالكامل
+        if (payloadTransferUpdate.status == PayloadStatus.SUCCESS) {
+          String? path = _incomingFiles[payloadTransferUpdate.id];
+          if (path != null && path.isNotEmpty) {
+            // تشغيل الصوت فوراً زي اللاسلكي
+            await _audioPlayer.play(DeviceFileSource(path));
+          }
+        }
+      },
+    );
   }
 
-  Future<void> sendMessageToAll(String message) async {
-    for (String id in connectedDevices) {
-      await Nearby().sendBytesPayload(id, Uint8List.fromList(message.codeUnits));
+  // ==========================================
+  // 4. تسجيل الصوت (عند الضغط)
+  // ==========================================
+  Future<void> startRecording() async {
+    if (await _audioRecorder.hasPermission()) {
+      final dir = await getTemporaryDirectory();
+      _currentAudioPath = '${dir.path}/vip_walkie_talkie.m4a';
+      
+      // بدء التسجيل
+      await _audioRecorder.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc), // صيغة خفيفة وسريعة
+        path: _currentAudioPath!,
+      );
+      
+      isRecording = true;
+      notifyListeners();
     }
   }
 
-  Future<void> sendMessageToIndividual(String id, String message) async {
-    await Nearby().sendBytesPayload(id, Uint8List.fromList(message.codeUnits));
+  // ==========================================
+  // 5. إيقاف التسجيل وإرسال الصوت (عند رفع الإصبع)
+  // ==========================================
+  Future<void> stopRecordingAndSend() async {
+    final path = await _audioRecorder.stop();
+    isRecording = false;
+    notifyListeners();
+
+    if (path != null && connectedDevices.isNotEmpty) {
+      // إرسال الملف الصوتي لكل الأجهزة المتصلة بالقناة
+      for (String deviceId in connectedDevices) {
+        await Nearby().sendFilePayload(deviceId, path);
+      }
+    }
   }
 
-  void stopAll() {
+  // ==========================================
+  // 6. قطع الاتصال
+  // ==========================================
+  void disconnectRoom() {
     Nearby().stopAdvertising();
     Nearby().stopDiscovery();
     Nearby().stopAllEndpoints();
     connectedDevices.clear();
-    isAdvertising = false;
-    isDiscovering = false;
+    isConnectedToRoom = false;
+    isRecording = false;
     notifyListeners();
   }
 }
