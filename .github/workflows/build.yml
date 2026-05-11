@@ -31,7 +31,7 @@ jobs:
       - name: Clean Gradle Cache
         run: |
           rm -rf ~/.gradle/caches
-          cd android && ./gradlew clean
+          flutter clean
 
       - name: Build APK
         run: flutter build apk --release
