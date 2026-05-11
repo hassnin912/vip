@@ -6,33 +6,27 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 
 class WirelessService extends ChangeNotifier {
-  final Strategy strategy = Strategy.P2P_STAR; // مناسب للغرف المتعددة
+  final Strategy strategy = Strategy.P2P_STAR;
   
   List<String> connectedDevices = [];
   bool isConnectedToRoom = false;
   bool isRecording = false;
 
-  // أدوات الصوت
   final AudioPlayer _audioPlayer = AudioPlayer();
-  final AudioRecorder _audioRecorder = AudioRecorder();
+  final Record _audioRecorder = Record();
   String? _currentAudioPath;
   
-  // لحفظ مسارات الملفات اللي بتتبعت
   final Map<int, String> _incomingFiles = {};
 
-  // ==========================================
-  // 1. إنشاء غرفة (بث)
-  // ==========================================
   Future<void> createRoom(String channelId, String password) async {
-    // دمج القناة والباسورد لعمل تردد فريد (Service ID)
     String roomFrequency = "vip_room_${channelId}_$password";
-    String myName = "VIP_Creator"; // ممكن تخلي المستخدم يكتب اسمه
+    String myName = "VIP_Creator";
 
     try {
       bool a = await Nearby().startAdvertising(
         myName,
         strategy,
-        serviceId: roomFrequency, // التردد السري
+        serviceId: roomFrequency,
         onConnectionInitiated: onConnectionInit,
         onConnectionResult: (id, status) {
           if (status == Status.CONNECTED) {
@@ -57,9 +51,6 @@ class WirelessService extends ChangeNotifier {
     }
   }
 
-  // ==========================================
-  // 2. الانضمام لغرفة (بحث)
-  // ==========================================
   Future<void> joinRoom(String channelId, String password) async {
     String roomFrequency = "vip_room_${channelId}_$password";
     String myName = "VIP_Member";
@@ -68,9 +59,8 @@ class WirelessService extends ChangeNotifier {
       bool d = await Nearby().startDiscovery(
         myName,
         strategy,
-        serviceId: roomFrequency, // لازم يطابق التردد السري
+        serviceId: roomFrequency,
         onEndpointFound: (id, name, serviceId) {
-          // أول ما يلاقي الغرفة، يطلب الانضمام فوراً
           Nearby().requestConnection(
             myName,
             id,
@@ -79,7 +69,7 @@ class WirelessService extends ChangeNotifier {
               if (status == Status.CONNECTED) {
                 connectedDevices.add(id);
                 isConnectedToRoom = true;
-                Nearby().stopDiscovery(); // نوقف بحث عشان نوفر بطارية
+                Nearby().stopDiscovery();
                 notifyListeners();
               }
             },
@@ -94,7 +84,6 @@ class WirelessService extends ChangeNotifier {
       );
       
       if (d) {
-        // جاري البحث... سيتم تحديث الحالة عند الاتصال
         notifyListeners();
       }
     } catch (e) {
@@ -102,24 +91,18 @@ class WirelessService extends ChangeNotifier {
     }
   }
 
-  // ==========================================
-  // 3. تهيئة الاتصال واستقبال الصوت
-  // ==========================================
   void onConnectionInit(String id, ConnectionInfo info) {
     Nearby().acceptConnection(
       id,
       onPayLoadRecieved: (endpointId, payload) {
-        // لما يوصل ملف (رسالة صوتية)
         if (payload.type == PayloadType.FILE) {
           _incomingFiles[payload.id] = payload.filePath ?? '';
         }
       },
       onPayloadTransferUpdate: (endpointId, payloadTransferUpdate) async {
-        // لما الملف يكتمل تحميله بالكامل
         if (payloadTransferUpdate.status == PayloadStatus.SUCCESS) {
           String? path = _incomingFiles[payloadTransferUpdate.id];
           if (path != null && path.isNotEmpty) {
-            // تشغيل الصوت فوراً زي اللاسلكي
             await _audioPlayer.play(DeviceFileSource(path));
           }
         }
@@ -127,18 +110,14 @@ class WirelessService extends ChangeNotifier {
     );
   }
 
-  // ==========================================
-  // 4. تسجيل الصوت (عند الضغط)
-  // ==========================================
   Future<void> startRecording() async {
     if (await _audioRecorder.hasPermission()) {
       final dir = await getTemporaryDirectory();
       _currentAudioPath = '${dir.path}/vip_walkie_talkie.m4a';
       
-      // بدء التسجيل
       await _audioRecorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc), // صيغة خفيفة وسريعة
         path: _currentAudioPath!,
+        encoder: AudioEncoder.aacLc,
       );
       
       isRecording = true;
@@ -146,25 +125,18 @@ class WirelessService extends ChangeNotifier {
     }
   }
 
-  // ==========================================
-  // 5. إيقاف التسجيل وإرسال الصوت (عند رفع الإصبع)
-  // ==========================================
   Future<void> stopRecordingAndSend() async {
     final path = await _audioRecorder.stop();
     isRecording = false;
     notifyListeners();
 
     if (path != null && connectedDevices.isNotEmpty) {
-      // إرسال الملف الصوتي لكل الأجهزة المتصلة بالقناة
       for (String deviceId in connectedDevices) {
         await Nearby().sendFilePayload(deviceId, path);
       }
     }
   }
 
-  // ==========================================
-  // 6. قطع الاتصال
-  // ==========================================
   void disconnectRoom() {
     Nearby().stopAdvertising();
     Nearby().stopDiscovery();
