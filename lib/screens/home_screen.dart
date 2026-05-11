@@ -37,14 +37,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final query = _searchController.text.toLowerCase();
     setState(() {
       _filteredContacts = _contacts.where((c) {
-        return c.name.toLowerCase().contains(query) || 
+        return c.name.toLowerCase().contains(query) ||
                c.role.toLowerCase().contains(query) ||
                c.phoneNumber.contains(query);
       }).toList();
     });
   }
 
-  // دالة الاتصال بعد التعديل لتنظيف الرقم من المسافات
   void _makeCall(String number) async {
     String cleanNumber = number.replaceAll(RegExp(r'[^\d+]'), '');
     final Uri url = Uri.parse('tel:$cleanNumber');
@@ -59,9 +58,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // دالة الواتساب بعد التعديل لتنظيف الرقم وفتحه في التطبيق مباشرة
   void _openWhatsApp(String number) async {
     String cleanNumber = number.replaceAll(RegExp(r'[^\d+]'), '');
+    if (cleanNumber.startsWith('0')) {
+      cleanNumber = '20${cleanNumber.substring(1)}';
+    }
     final Uri url = Uri.parse('https://wa.me/$cleanNumber');
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
@@ -129,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onPressed: () => _makeCall(contact.phoneNumber),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.message, color: Colors.teal),
+                                icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
                                 onPressed: () => _openWhatsApp(contact.phoneNumber),
                               ),
                             ],
@@ -141,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 builder: (context) => ContactFormScreen(contact: contact),
                               ),
                             );
-                            _loadContacts(); // تحديث القائمة بعد التعديل
+                            _loadContacts();
                           },
                         ),
                       );
@@ -156,11 +157,10 @@ class _HomeScreenState extends State<HomeScreen> {
             context,
             MaterialPageRoute(builder: (context) => const ContactFormScreen()),
           );
-          _loadContacts(); // تحديث القائمة بعد الإضافة
+          _loadContacts();
         },
         child: const Icon(Icons.add),
       ),
     );
   }
 }
-
