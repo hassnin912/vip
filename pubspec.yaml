@@ -16,7 +16,7 @@ dependencies:
   intl: any
   uuid: ^3.0.7
   flutter_contacts: any
-  record: ^5.0.5
+  record: ^4.4.4
   # استخدمنا الإصدار ده بالظبط عشان نتجنب تعارض أندرويد 35
   audioplayers: 5.1.0 
   path_provider: ^2.1.2
